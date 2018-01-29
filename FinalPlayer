@@ -1,0 +1,214 @@
+// import the API.
+// See xxx for the javadocs.
+import bc.*;
+
+public class Player {
+    public static void main(String[] args) {
+        // You can use other files in this directory, and in subdirectories.
+        Extra extra = new Extra(27);
+        System.out.println(extra.toString());
+
+        // MapLocation is a data structure you'll use a lot.
+        MapLocation loc = new MapLocation(Planet.Earth, 10, 20);
+        System.out.println("loc: "+loc+", one step to the Northwest: "+loc.add(Direction.Northwest));
+        System.out.println("loc x: "+loc.getX());
+
+        // One slightly weird thing: some methods are currently static methods on a static class called bc.
+        // This will eventually be fixed :/
+        System.out.println("Opposite of " + Direction.North + ": " + bc.bcDirectionOpposite(Direction.North));
+
+        // Connect to the manager, starting the game
+        GameController gc = new GameController();
+
+        // Direction is a normal java enum.
+        Direction[] directions = Direction.values();
+
+        boolean move = true;
+        MapLocation blueIdPlace = null;
+        int blueId = 0;
+        Unit blue = null;
+        MapLocation locU = null;
+
+
+        while (true) {
+
+            System.out.println("Current round: "+gc.round());
+            System.out.println("Current Kryptonite Total: "+gc.karbonite());
+            // VecUnit is a class that you can think of as similar to ArrayList<Unit>, but immutable.
+            VecUnit units = gc.myUnits();
+            PlanetMap earth = gc.startingMap(Planet.Earth);
+            PlanetMap mars = gc.startingMap(Planet.Mars);
+
+            int earthWidth = (int)earth.getWidth();
+            int earthHeight = (int)earth.getHeight();
+
+            boolean[][] earthKarboniteMap = new boolean[earthWidth][earthHeight];
+            for (int i = 0; i < earthWidth; i++) {
+                for (int j = 0; j < earthHeight; j++){
+                    MapLocation n = new MapLocation(Planet.Earth, i,j);
+                    if (gc.canSenseLocation(n)) {
+                        long x = gc.karboniteAt(n);
+                        if (x > 3) {
+                            earthKarboniteMap[i][j] = true;
+                        }
+                    }
+                }
+            }
+
+
+
+            for (int i = 0; i < units.size(); i++) {
+                Unit unit = units.get(i);
+                UnitType unitType = unit.unitType();
+                int unitId = unit.id();
+
+               /*
+                boolean gar = false;
+                if(blue!=null) {
+                    VecUnitID list = blue.structureGarrison();
+                    for(int y = 0; y<list.size(); y++)
+                    {
+                        if (unitId==list.get(y))
+                            gar = true;
+                    }
+                }*/
+
+             //   if(!gar) {
+
+                        switch (unitType) {
+                            case Factory:
+                                 locU = unit.location().mapLocation();
+
+                                if (gc.canProduceRobot(unitId, unitType.Knight)) {
+                                    gc.produceRobot(unitId, unitType.Knight);
+                                    System.out.print("I'm doing stuff");
+                                }
+                                if (gc.canUnload(unitId, Direction.North)) {
+                                    gc.unload(unitId, Direction.North);
+                                    System.out.print("Knight incoming");
+                                }
+
+                                break;
+
+                            case Worker:
+                                 locU = unit.location().mapLocation();
+
+                                VecMapLocation surroundings = gc.allLocationsWithin(locU, 1);
+                                Direction harvest = null;
+                                for (int k = 0; k < surroundings.size(); k++) {
+
+                                    int x = surroundings.get(k).getX();
+                                    int y = surroundings.get(k).getY();
+
+
+                                    if (earthKarboniteMap[x][y]) {
+                                        harvest = locU.directionTo(surroundings.get(k));
+                                    }
+                                }
+
+                                if (harvest == null) {
+                                    harvest = Direction.North;
+                                }
+
+                                move = false;
+                                //*NOTE: Fix directions.
+                                if (gc.canBuild(unitId, blueId)) {
+                                    System.out.println("hi");
+                                    gc.build(unitId, blueId);
+                                    System.out.print("Health:" + blue.health());
+                                    move = false;
+                                    } else if (gc.canHarvest(unitId, harvest)) {
+                                    gc.harvest(unitId, harvest);
+                                } else if (gc.canBlueprint(unitId, UnitType.Factory, Direction.North)) {
+                                    gc.blueprint(unitId, UnitType.Factory, Direction.North);
+                                    blueIdPlace = locU.add(Direction.North);
+                                    blueId = gc.senseUnitAtLocation(blueIdPlace).id();
+                                    blue = gc.senseUnitAtLocation(blueIdPlace);
+                                    System.out.println("Health:" + blue.health());
+                                    move = false;}
+                                    //else if (gc.canReplicate(unitId, Direction.North)) {
+                                      //gc.replicate(unitId, Direction.North);
+                                    //}
+
+
+                                break;
+
+                            case Healer:
+                                break;
+                            case Knight:
+
+                                if(locU == null) {
+
+                                    move = false;
+                                    System.out.println("I'm alive");
+                                    VecUnit nearby = gc.senseNearbyUnits(locU, 2);
+                                    attack:
+                                    for (int a = 0; a < nearby.size(); a++) {
+                                        for (int b = 0; b < gc.myUnits().size(); b++) {
+                                            if (gc.canAttack(unitId, nearby.get(a).id()) && !nearby.get(a).equals(gc.myUnits().get(b))) {
+                                                gc.attack(unitId, nearby.get(a).id());
+                                                break attack;
+                                            }
+                                        }
+                                    }
+                                }
+                                break;
+                            case Mage:
+                                break;
+                            case Ranger:
+                                break;
+                            case Rocket:
+                                break;
+                            default:
+                                break;
+                        }
+
+
+                        //figure out
+
+                        // Most methods on gc take unit IDs, instead of the unit objects themselves.
+
+                        if (move) {
+
+                            Direction d = null;
+
+                            Direction[] dir = Direction.values();
+                            for (int t = 0; t < dir.length; t++) {
+                                if (gc.isMoveReady(unit.id()) && gc.canMove(unit.id(), dir[t])) {
+                                    d = dir[t];
+                                }
+                            }
+
+                            if (d != null) {
+                                gc.moveRobot(unit.id(), d);
+                            }
+                        }
+                        //probs putting stuff here
+
+                  //  }
+            }
+            // Submit the actions we've done, and wait for our next turn.
+            //what does it mean by submitting??
+
+
+            gc.nextTurn();
+        }
+
+    }
+
+    /*
+    public static Direction moveable(int unitId)
+    {
+        Direction [] dir = Direction.values();
+        for(int i = 0; i<dir.length; i++)
+        {
+            if(gc.isMoveReady(unit.id()) && gc.canMove(unit.id(),dir[i]))
+            {
+                return dir[i];
+            }
+        }
+
+        return Direction.North;
+    }
+    */
+}
